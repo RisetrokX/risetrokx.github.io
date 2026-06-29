@@ -473,23 +473,26 @@ async function loadFallbackEvents(location = defaultLocation) {
 
 async function fetchEventsForLocation(location) {
   try {
-    // Call Ticketmaster API directly (free, public key)
+    // Call Ticketmaster API through AllOrigins CORS proxy (free, no setup)
     const TICKETMASTER_KEY = 'Ym1C9G1l4gLuDnGV3FZV8d8wL0jmHVpO';
     
-    const url = new URL('https://app.ticketmaster.com/discovery/v2/events');
-    url.searchParams.set('latlong', `${location.lat},${location.lng}`);
-    url.searchParams.set('radius', Math.min(radiusKm, 100));
-    url.searchParams.set('unit', 'km');
-    url.searchParams.set('size', '50');
-    url.searchParams.set('apikey', TICKETMASTER_KEY);
+    const ticketmasterUrl = new URL('https://app.ticketmaster.com/discovery/v2/events');
+    ticketmasterUrl.searchParams.set('latlong', `${location.lat},${location.lng}`);
+    ticketmasterUrl.searchParams.set('radius', Math.min(radiusKm, 100));
+    ticketmasterUrl.searchParams.set('unit', 'km');
+    ticketmasterUrl.searchParams.set('size', '50');
+    ticketmasterUrl.searchParams.set('apikey', TICKETMASTER_KEY);
 
-    const response = await fetch(url.toString());
+    // Use AllOrigins public CORS proxy
+    const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(ticketmasterUrl.toString())}`;
+    const response = await fetch(corsProxyUrl);
     
     if (!response.ok) {
-      throw new Error(`Ticketmaster API error: ${response.status}`);
+      throw new Error(`CORS proxy error: ${response.status}`);
     }
 
-    const data = await response.json();
+    const proxyData = await response.json();
+    const data = JSON.parse(proxyData.contents);
     const ticketmasterEvents = (data._embedded?.events || []).map(evt => ({
       name: evt.name,
       category: evt.classifications?.[0]?.segment?.name || 'Events',
