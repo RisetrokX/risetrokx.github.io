@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Events Near Me</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="map"></div>
+
+  <div class="top-bar">
+    <div class="search-wrap">
+      <input id="searchInput" type="search" placeholder="Search city or address…" autocomplete="off" />
+      <button id="searchBtn" class="icon-btn" aria-label="Search">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </button>
+    </div>
+    <button id="locateMeBtn" class="icon-btn locate-btn" aria-label="My location" title="Center on my location">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+    </button>
+    <button id="refreshBtn" class="icon-btn" aria-label="Refresh location" title="Refresh location">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+    </button>
+  </div>
+
+  <div class="status-pill" id="locationStatus">Locating…</div>
+
+  <div class="map-filter-bar" id="mapFilterBar">
+    <div class="map-customize-row">
+      <label class="customize-pill" for="radiusKmInput">Radius (km)
+        <input id="radiusKmInput" type="number" min="1" max="150" step="1" value="30" />
+      </label>
+      <label class="customize-pill" for="endDateInput">End by
+        <input id="endDateInput" type="datetime-local" />
+      </label>
+    </div>
+    <div class="map-filter-row">
+      <button class="bottom-filter active" data-filter="all" type="button">All</button>
+      <button class="bottom-filter" data-filter="live" type="button">Live</button>
+      <button class="bottom-filter" data-filter="future" type="button">Future</button>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

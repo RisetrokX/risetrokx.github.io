@@ -1,0 +1,21 @@
+# Development
+.vscode/
+node_modules/
+package.json
+package-lock.json
+server.js
+events.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+*.swp
+*.swo
+*~
+.idea/
+
+# Build
+dist/
+build/
