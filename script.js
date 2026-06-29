@@ -494,7 +494,7 @@ async function fetchEventsForLocation(location) {
     }
     
     events = dedupeEvents(apiEvents);
-    locationStatus.textContent = `Loaded ${apiEvents.length} live events from Ticketmaster`;
+    locationStatus.textContent = `Loaded ${apiEvents.length} events nearby`;
   } catch (error) {
     locationStatus.textContent = 'No live events available; showing demo events';
     await loadFallbackEvents(location);
