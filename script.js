@@ -472,36 +472,43 @@ async function loadFallbackEvents(location = defaultLocation) {
 
 
 async function fetchEventsForLocation(location) {
-  let statusMessage = '';
-
   try {
-    // Call Vercel backend (or localhost for local dev)
-    const baseUrl = window.location.hostname === 'localhost' 
-      ? 'http://localhost:3000'
-      : 'https://risetrokx-github-io.vercel.app'; // Your Vercel backend
+    // Call Ticketmaster API directly (free, public key)
+    const TICKETMASTER_KEY = 'Ym1C9G1l4gLuDnGV3FZV8d8wL0jmHVpO';
     
-    const url = new URL(`${baseUrl}/api/events`);
-    url.searchParams.set('lat', location.lat);
-    url.searchParams.set('lng', location.lng);
-    url.searchParams.set('radiusKm', radiusKm);
-    
+    const url = new URL('https://app.ticketmaster.com/discovery/v2/events');
+    url.searchParams.set('latlong', `${location.lat},${location.lng}`);
+    url.searchParams.set('radius', Math.min(radiusKm, 100));
+    url.searchParams.set('unit', 'km');
+    url.searchParams.set('size', '50');
+    url.searchParams.set('apikey', TICKETMASTER_KEY);
+
     const response = await fetch(url.toString());
     
     if (!response.ok) {
-      throw new Error('API fetch failed');
+      throw new Error(`Ticketmaster API error: ${response.status}`);
     }
 
-    const apiEvents = await response.json();
+    const data = await response.json();
+    const ticketmasterEvents = (data._embedded?.events || []).map(evt => ({
+      name: evt.name,
+      category: evt.classifications?.[0]?.segment?.name || 'Events',
+      description: evt.info || evt.description || 'Event details available on Ticketmaster',
+      lat: evt._embedded?.venues?.[0]?.location?.latitude || location.lat,
+      lng: evt._embedded?.venues?.[0]?.location?.longitude || location.lng,
+      start: evt.dates?.start?.dateTime || evt.dates?.start?.localDate + 'T00:00:00',
+      end: evt.dates?.end?.dateTime || evt.dates?.end?.localDate + 'T23:59:59',
+      url: evt.url,
+    }));
 
-    if (!Array.isArray(apiEvents) || apiEvents.length === 0) {
-      throw new Error('No events found from the API');
+    if (ticketmasterEvents.length === 0) {
+      throw new Error('No events found in this area');
     }
     
-    events = dedupeEvents(apiEvents);
-    statusMessage = 'Loaded live events from Ticketmaster';
-    locationStatus.textContent = statusMessage;
+    events = dedupeEvents(ticketmasterEvents);
+    locationStatus.textContent = `Loaded ${ticketmasterEvents.length} live events from Ticketmaster`;
   } catch (error) {
-    locationStatus.textContent = 'Loading demo events (API unavailable)...';
+    locationStatus.textContent = 'No live events available; showing demo events';
     await loadFallbackEvents(location);
   }
 }
