@@ -473,43 +473,28 @@ async function loadFallbackEvents(location = defaultLocation) {
 
 async function fetchEventsForLocation(location) {
   try {
-    // Call Ticketmaster API through AllOrigins CORS proxy (free, no setup)
-    const TICKETMASTER_KEY = 'Ym1C9G1l4gLuDnGV3FZV8d8wL0jmHVpO';
+    // Call Vercel backend API directly (it's already deployed and working!)
+    const vercelUrl = 'https://risetrokx-github-io.vercel.app/api/events';
     
-    const ticketmasterUrl = new URL('https://app.ticketmaster.com/discovery/v2/events');
-    ticketmasterUrl.searchParams.set('latlong', `${location.lat},${location.lng}`);
-    ticketmasterUrl.searchParams.set('radius', Math.min(radiusKm, 100));
-    ticketmasterUrl.searchParams.set('unit', 'km');
-    ticketmasterUrl.searchParams.set('size', '50');
-    ticketmasterUrl.searchParams.set('apikey', TICKETMASTER_KEY);
+    const url = new URL(vercelUrl);
+    url.searchParams.set('lat', location.lat);
+    url.searchParams.set('lng', location.lng);
+    url.searchParams.set('radiusKm', radiusKm);
 
-    // Use AllOrigins public CORS proxy
-    const corsProxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(ticketmasterUrl.toString())}`;
-    const response = await fetch(corsProxyUrl);
+    const response = await fetch(url.toString());
     
     if (!response.ok) {
-      throw new Error(`CORS proxy error: ${response.status}`);
+      throw new Error(`Vercel API error: ${response.status}`);
     }
 
-    const proxyData = await response.json();
-    const data = JSON.parse(proxyData.contents);
-    const ticketmasterEvents = (data._embedded?.events || []).map(evt => ({
-      name: evt.name,
-      category: evt.classifications?.[0]?.segment?.name || 'Events',
-      description: evt.info || evt.description || 'Event details available on Ticketmaster',
-      lat: evt._embedded?.venues?.[0]?.location?.latitude || location.lat,
-      lng: evt._embedded?.venues?.[0]?.location?.longitude || location.lng,
-      start: evt.dates?.start?.dateTime || evt.dates?.start?.localDate + 'T00:00:00',
-      end: evt.dates?.end?.dateTime || evt.dates?.end?.localDate + 'T23:59:59',
-      url: evt.url,
-    }));
+    const apiEvents = await response.json();
 
-    if (ticketmasterEvents.length === 0) {
+    if (!Array.isArray(apiEvents) || apiEvents.length === 0) {
       throw new Error('No events found in this area');
     }
     
-    events = dedupeEvents(ticketmasterEvents);
-    locationStatus.textContent = `Loaded ${ticketmasterEvents.length} live events from Ticketmaster`;
+    events = dedupeEvents(apiEvents);
+    locationStatus.textContent = `Loaded ${apiEvents.length} live events from Ticketmaster`;
   } catch (error) {
     locationStatus.textContent = 'No live events available; showing demo events';
     await loadFallbackEvents(location);
