@@ -1,48 +1,65 @@
-// Vercel Serverless Function - Save as api/events.js
-// This runs on Vercel and fetches real events from Ticketmaster
+// Vercel Serverless Function - api/events.js
+// Fetches real events from PredictHQ API
 
 export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+
   const { lat, lng, radiusKm = 50 } = req.query;
 
   if (!lat || !lng) {
     return res.status(400).json({ error: 'Missing lat/lng parameters' });
   }
 
-  try {
-    // Call Ticketmaster API (free, public)
-    // Note: Demo key is rate-limited. Get your own free key at:
-    // https://developer.ticketmaster.com/
-    const TICKETMASTER_KEY = process.env.TICKETMASTER_API_KEY || 'DEMO_KEY_ADD_YOUR_OWN';
-    
-    const url = new URL('https://app.ticketmaster.com/discovery/v2/events');
-    url.searchParams.set('latlong', `${lat},${lng}`);
-    url.searchParams.set('radius', Math.min(radiusKm, 100)); // Ticketmaster max 100km
-    url.searchParams.set('unit', 'km');
-    url.searchParams.set('size', '50');
-    url.searchParams.set('apikey', TICKETMASTER_KEY);
+  const apiKey = process.env.PREDICTHQ_API_KEY;
 
-    const response = await fetch(url.toString());
-    
+  if (!apiKey) {
+    return res.status(500).json({ error: 'PredictHQ API key not configured' });
+  }
+
+  try {
+    const now = new Date().toISOString().slice(0, 10);
+    const phqUrl = new URL('https://api.predicthq.com/v1/events/');
+    phqUrl.searchParams.set('within', `${Math.min(radiusKm, 150)}km@${lat},${lng}`);
+    phqUrl.searchParams.set('active.gte', now);
+    phqUrl.searchParams.set('sort', 'start');
+    phqUrl.searchParams.set('limit', '50');
+    phqUrl.searchParams.set('category', 'concerts,sports,community,expos,festivals,performing-arts');
+
+    const response = await fetch(phqUrl.toString(), {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        Accept: 'application/json'
+      }
+    });
+
     if (!response.ok) {
-      console.error('Ticketmaster API error:', response.status);
-      return res.status(500).json({ events: [], error: 'Ticketmaster API unavailable' });
+      return res.status(502).json({ error: `PredictHQ API error: ${response.status}` });
     }
 
-    const data = await response.json();
-    const events = (data._embedded?.events || []).map(evt => ({
-      name: evt.name,
-      category: evt.classifications?.[0]?.segment?.name || 'Events',
-      description: evt.info || evt.description || 'No description available',
-      lat: evt._embedded?.venues?.[0]?.location?.latitude || lat,
-      lng: evt._embedded?.venues?.[0]?.location?.longitude || lng,
-      start: evt.dates?.start?.dateTime || (evt.dates?.start?.localDate ? evt.dates.start.localDate + 'T00:00:00' : ''),
-      end: evt.dates?.end?.dateTime || (evt.dates?.end?.localDate ? evt.dates.end.localDate + 'T23:59:59' : ''),
-      url: evt.url,
-    }));
+    const json = await response.json();
+    const events = (json.results || []).map(item => {
+      const location = Array.isArray(item.location) && item.location.length === 2 ? item.location : null;
+      const evtLat = location ? parseFloat(location[1]) : null;
+      const evtLng = location ? parseFloat(location[0]) : null;
+      if (evtLat === null || evtLng === null || isNaN(evtLat) || isNaN(evtLng)) return null;
+
+      return {
+        id: item.id || `${item.title}|${item.start}|${evtLat}|${evtLng}`,
+        name: item.title || 'Event',
+        category: item.category || item.labels?.[0] || 'Event',
+        description: item.description || 'Live event nearby',
+        venueAddress: item.geo?.address?.formatted_address || '',
+        url: item.url || '',
+        lat: evtLat,
+        lng: evtLng,
+        start: item.start || '',
+        end: item.end || item.start || '',
+      };
+    }).filter(Boolean);
 
     res.status(200).json(events);
   } catch (error) {
-    console.error('Error fetching events:', error);
-    res.status(500).json({ events: [], error: error.message });
+    res.status(500).json({ error: error.message });
   }
 }
