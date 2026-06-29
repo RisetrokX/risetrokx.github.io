@@ -10,6 +10,19 @@ const refreshBtn = document.getElementById('refreshBtn');
 const searchInput = document.getElementById('searchInput');
 const searchBtn = document.getElementById('searchBtn');
 const radiusKmInput = document.getElementById('radiusKmInput');
+
+let statusHideTimer = null;
+function showStatus(msg, { persist = false } = {}) {
+  if (!locationStatus) return;
+  clearTimeout(statusHideTimer);
+  locationStatus.textContent = msg;
+  locationStatus.style.opacity = '1';
+  if (!persist) {
+    statusHideTimer = setTimeout(() => {
+      locationStatus.style.opacity = '0';
+    }, 3000);
+  }
+}
 const endDateInput = document.getElementById('endDateInput');
 const filterButtons = document.querySelectorAll('.bottom-filter');
 
@@ -233,7 +246,7 @@ const markers = [];
 
 function createMap() {
   if (typeof L === 'undefined') {
-    locationStatus.textContent = 'Map library failed to load. Check your internet connection or browser security settings.';
+    showStatus('Map library failed to load. Check your internet connection or browser security settings.', { persist: true });
     return;
   }
 
@@ -462,10 +475,10 @@ async function loadFallbackEvents(location = defaultLocation) {
       start: evt.start,
       end: evt.end
     }));
-    locationStatus.textContent = `Using sample events near ${nearestCity.city.name}`;
+    showStatus(`Using sample events near ${nearestCity.city.name}`);
   } else {
     events = sampleCities.flatMap(city => city.events);
-    locationStatus.textContent = 'Using global sample events for demo mode';
+    showStatus('Using global sample events for demo mode');
   }
 }
 
@@ -494,9 +507,9 @@ async function fetchEventsForLocation(location) {
     }
     
     events = dedupeEvents(apiEvents);
-    locationStatus.textContent = `Loaded ${apiEvents.length} events nearby`;
+    showStatus(`Loaded ${apiEvents.length} events nearby`);
   } catch (error) {
-    locationStatus.textContent = 'No live events available; showing demo events';
+    showStatus('No live events available; showing demo events');
     await loadFallbackEvents(location);
   }
 }
@@ -817,15 +830,15 @@ async function setMapLocation(location, source) {
 
   if (source === 'device') {
     const accuracyMeters = Number.isFinite(location.accuracy) ? Math.round(location.accuracy) : null;
-    locationStatus.textContent = accuracyMeters ? `GPS fix (±${accuracyMeters} m)` : 'Located successfully (GPS)';
+    showStatus(accuracyMeters ? `GPS fix (±${accuracyMeters} m)` : 'Located successfully (GPS)');
   } else if (source === 'cached') {
-    locationStatus.textContent = 'Using cached location';
+    showStatus('Using cached location');
   } else if (source === 'ip') {
-    locationStatus.textContent = 'Using IP location (city-level approx)';
+    showStatus('Using IP location (city-level approx)');
   } else if (source === 'search') {
-    locationStatus.textContent = 'Location from search';
+    showStatus('Location from search');
   } else {
-    locationStatus.textContent = 'Map ready';
+    showStatus('Map ready');
   }
 
   await fetchEventsForLocation(location);
@@ -847,12 +860,12 @@ function getLocationFailureMessage(error) {
 }
 
 refreshBtn.addEventListener('click', async () => {
-  locationStatus.textContent = 'Finding your location…';
+  showStatus('Finding your location…', { persist: true });
   try {
     const location = await locateUser({ allowApproximate: true, allowCached: false });
     await setMapLocation(location, location.source);
   } catch (error) {
-    locationStatus.textContent = 'Location unavailable. Check GPS permission or search your city.';
+        showStatus('Location unavailable. Check GPS permission or search your city.', { persist: true });
     await setMapLocation(defaultLocation, 'default');
   }
 });
@@ -860,16 +873,16 @@ refreshBtn.addEventListener('click', async () => {
 async function searchForLocation() {
   const query = searchInput.value.trim();
   if (!query) {
-    locationStatus.textContent = 'Enter a city or address to search.';
+    showStatus('Enter a city or address to search.');
     return;
   }
 
-  locationStatus.textContent = 'Searching address…';
+  showStatus('Searching address…', { persist: true });
   try {
     const location = await searchLocation(query);
     await setMapLocation(location, location.source);
   } catch (error) {
-    locationStatus.textContent = error.message || 'Search failed';
+    showStatus(error.message || 'Search failed', { persist: true });
   }
 }
 
@@ -899,11 +912,11 @@ async function initApp() {
   createMap();
 
   document.getElementById('locateMeBtn').addEventListener('click', () => {
-    locationStatus.textContent = 'Requesting location (may take 20 sec)…';
+    showStatus('Requesting location (may take 20 sec)…', { persist: true });
     locateUser({ allowApproximate: true, allowCached: true })
       .then(location => setMapLocation(location, location.source))
       .catch(async (error) => {
-        locationStatus.textContent = 'GPS not available on HTTP. Search your city above instead.';
+        showStatus('GPS not available on HTTP. Search your city above instead.', { persist: true });
         if (currentLocation && map) {
           map.flyTo([currentLocation.lat, currentLocation.lng], 14, { duration: 1.2 });
         }
@@ -914,7 +927,7 @@ async function initApp() {
     const location = await locateUser({ allowApproximate: true, allowCached: true });
     await setMapLocation(location, location.source);
   } catch (error) {
-    locationStatus.textContent = 'Search your city to get started';
+    showStatus('Search your city to get started');
   }
 }
 
