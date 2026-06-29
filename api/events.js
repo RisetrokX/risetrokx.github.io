@@ -35,8 +35,8 @@ export default async function handler(req, res) {
       description: evt.info || evt.description || 'No description available',
       lat: evt._embedded?.venues?.[0]?.location?.latitude || lat,
       lng: evt._embedded?.venues?.[0]?.location?.longitude || lng,
-      start: evt.dates?.start?.dateTime || evt.dates?.start?.localDate + 'T00:00:00',
-      end: evt.dates?.end?.dateTime || evt.dates?.end?.localDate + 'T23:59:59',
+      start: evt.dates?.start?.dateTime || (evt.dates?.start?.localDate ? evt.dates.start.localDate + 'T00:00:00' : ''),
+      end: evt.dates?.end?.dateTime || (evt.dates?.end?.localDate ? evt.dates.end.localDate + 'T23:59:59' : ''),
       url: evt.url,
     }));
 
