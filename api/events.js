@@ -1,5 +1,5 @@
 // Vercel Serverless Function - api/events.js
-// Fetches real events from PredictHQ API
+// Fetches real events from Eventbrite API
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,22 +11,22 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing lat/lng parameters' });
   }
 
-  const apiKey = process.env.PREDICTHQ_API_KEY;
+  const apiKey = process.env.EVENTBRITE_API_KEY;
 
   if (!apiKey) {
-    return res.status(500).json({ error: 'PredictHQ API key not configured' });
+    return res.status(500).json({ error: 'Eventbrite API key not configured' });
   }
 
   try {
-    const now = new Date().toISOString().slice(0, 10);
-    const phqUrl = new URL('https://api.predicthq.com/v1/events/');
-    phqUrl.searchParams.set('within', `${Math.min(radiusKm, 150)}km@${lat},${lng}`);
-    phqUrl.searchParams.set('active.gte', now);
-    phqUrl.searchParams.set('sort', 'start');
-    phqUrl.searchParams.set('limit', '50');
-    phqUrl.searchParams.set('category', 'concerts,sports,community,expos,festivals,performing-arts');
+    const url = new URL('https://www.eventbriteapi.com/v3/events/search/');
+    url.searchParams.set('location.latitude', lat);
+    url.searchParams.set('location.longitude', lng);
+    url.searchParams.set('location.within', `${Math.min(radiusKm, 150)}km`);
+    url.searchParams.set('start_date.range_start', new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'));
+    url.searchParams.set('expand', 'venue');
+    url.searchParams.set('page_size', '50');
 
-    const response = await fetch(phqUrl.toString(), {
+    const response = await fetch(url.toString(), {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         Accept: 'application/json'
@@ -34,27 +34,26 @@ export default async function handler(req, res) {
     });
 
     if (!response.ok) {
-      return res.status(502).json({ error: `PredictHQ API error: ${response.status}` });
+      return res.status(502).json({ error: `Eventbrite API error: ${response.status}` });
     }
 
     const json = await response.json();
-    const events = (json.results || []).map(item => {
-      const location = Array.isArray(item.location) && item.location.length === 2 ? item.location : null;
-      const evtLat = location ? parseFloat(location[1]) : null;
-      const evtLng = location ? parseFloat(location[0]) : null;
-      if (evtLat === null || evtLng === null || isNaN(evtLat) || isNaN(evtLng)) return null;
+    const events = (json.events || []).map(evt => {
+      const venueLat = evt.venue?.latitude ? parseFloat(evt.venue.latitude) : null;
+      const venueLng = evt.venue?.longitude ? parseFloat(evt.venue.longitude) : null;
+      if (!venueLat || !venueLng || isNaN(venueLat) || isNaN(venueLng)) return null;
 
       return {
-        id: item.id || `${item.title}|${item.start}|${evtLat}|${evtLng}`,
-        name: item.title || 'Event',
-        category: item.category || item.labels?.[0] || 'Event',
-        description: item.description || 'Live event nearby',
-        venueAddress: item.geo?.address?.formatted_address || '',
-        url: item.url || '',
-        lat: evtLat,
-        lng: evtLng,
-        start: item.start || '',
-        end: item.end || item.start || '',
+        id: evt.id,
+        name: evt.name?.text || 'Event',
+        category: evt.category?.name || 'Event',
+        description: evt.description?.text?.slice(0, 200) || 'No description available',
+        venueAddress: evt.venue?.address?.localized_address_display || '',
+        url: evt.url || '',
+        lat: venueLat,
+        lng: venueLng,
+        start: evt.start?.utc || '',
+        end: evt.end?.utc || evt.start?.utc || '',
       };
     }).filter(Boolean);
 
