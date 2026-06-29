@@ -475,34 +475,33 @@ async function fetchEventsForLocation(location) {
   let statusMessage = '';
 
   try {
-    const url = new URL('/api/events', window.location.origin);
+    // Call Vercel backend (or localhost for local dev)
+    const baseUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:3000'
+      : 'https://risetrokx-github-io.vercel.app'; // Your Vercel backend
+    
+    const url = new URL(`${baseUrl}/api/events`);
     url.searchParams.set('lat', location.lat);
     url.searchParams.set('lng', location.lng);
     url.searchParams.set('radiusKm', radiusKm);
+    
     const response = await fetch(url.toString());
+    
     if (!response.ok) {
       throw new Error('API fetch failed');
     }
 
     const apiEvents = await response.json();
-    const source = response.headers.get('x-events-source');
-    const errorInfo = response.headers.get('x-events-error');
-
-    if (source === 'predicthq') {
-      statusMessage = 'Loaded live events from PredictHQ';
-    } else if (errorInfo) {
-      statusMessage = `Live key invalid or rejected: ${errorInfo}`;
-    } else {
-      statusMessage = 'Loaded fallback events; live feed unavailable';
-    }
 
     if (!Array.isArray(apiEvents) || apiEvents.length === 0) {
-      throw new Error(errorInfo || 'No events found from the API');
+      throw new Error('No events found from the API');
     }
+    
     events = dedupeEvents(apiEvents);
+    statusMessage = 'Loaded live events from Ticketmaster';
     locationStatus.textContent = statusMessage;
   } catch (error) {
-    locationStatus.textContent = statusMessage || 'Unable to load live event data; using demo events instead.';
+    locationStatus.textContent = 'Loading demo events (API unavailable)...';
     await loadFallbackEvents(location);
   }
 }
