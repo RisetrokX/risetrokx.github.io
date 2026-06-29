@@ -1,5 +1,5 @@
 // Vercel Serverless Function - api/events.js
-// Fetches real events from Eventbrite API
+// Fetches real events from SeatGeek API
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,49 +11,46 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'Missing lat/lng parameters' });
   }
 
-  const apiKey = process.env.EVENTBRITE_API_KEY;
+  const clientId = process.env.SEATGEEK_CLIENT_ID;
 
-  if (!apiKey) {
-    return res.status(500).json({ error: 'Eventbrite API key not configured' });
+  if (!clientId) {
+    return res.status(500).json({ error: 'SeatGeek client ID not configured' });
   }
 
   try {
-    const url = new URL('https://www.eventbriteapi.com/v3/events/search/');
-    url.searchParams.set('location.latitude', lat);
-    url.searchParams.set('location.longitude', lng);
-    url.searchParams.set('location.within', `${Math.min(radiusKm, 150)}km`);
-    url.searchParams.set('start_date.range_start', new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'));
-    url.searchParams.set('expand', 'venue');
-    url.searchParams.set('page_size', '50');
+    // SeatGeek uses miles for range
+    const radiusMi = Math.round(Math.min(radiusKm, 150) * 0.621371);
 
-    const response = await fetch(url.toString(), {
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        Accept: 'application/json'
-      }
-    });
+    const url = new URL('https://api.seatgeek.com/2/events');
+    url.searchParams.set('lat', lat);
+    url.searchParams.set('lon', lng);
+    url.searchParams.set('range', `${radiusMi}mi`);
+    url.searchParams.set('per_page', '50');
+    url.searchParams.set('client_id', clientId);
+
+    const response = await fetch(url.toString());
 
     if (!response.ok) {
-      return res.status(502).json({ error: `Eventbrite API error: ${response.status}` });
+      return res.status(502).json({ error: `SeatGeek API error: ${response.status}` });
     }
 
-    const json = await response.json();
-    const events = (json.events || []).map(evt => {
-      const venueLat = evt.venue?.latitude ? parseFloat(evt.venue.latitude) : null;
-      const venueLng = evt.venue?.longitude ? parseFloat(evt.venue.longitude) : null;
-      if (!venueLat || !venueLng || isNaN(venueLat) || isNaN(venueLng)) return null;
+    const data = await response.json();
+    const events = (data.events || []).map(evt => {
+      const evtLat = evt.venue?.location?.lat;
+      const evtLng = evt.venue?.location?.lon;
+      if (!evtLat || !evtLng) return null;
 
       return {
-        id: evt.id,
-        name: evt.name?.text || 'Event',
-        category: evt.category?.name || 'Event',
-        description: evt.description?.text?.slice(0, 200) || 'No description available',
-        venueAddress: evt.venue?.address?.localized_address_display || '',
+        id: String(evt.id),
+        name: evt.title || evt.short_title || 'Event',
+        category: evt.type || evt.taxonomies?.[0]?.name || 'Event',
+        description: evt.venue?.name ? `at ${evt.venue.name}` : 'No description available',
+        venueAddress: [evt.venue?.address, evt.venue?.city].filter(Boolean).join(', '),
         url: evt.url || '',
-        lat: venueLat,
-        lng: venueLng,
-        start: evt.start?.utc || '',
-        end: evt.end?.utc || evt.start?.utc || '',
+        lat: evtLat,
+        lng: evtLng,
+        start: evt.datetime_utc ? evt.datetime_utc.replace(' ', 'T') + 'Z' : '',
+        end: evt.datetime_utc ? evt.datetime_utc.replace(' ', 'T') + 'Z' : '',
       };
     }).filter(Boolean);
 
